@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Antonito Avances</title>
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+    <header>
+        <div class="logo">
+            <img src="{{ url_for('static', filename='images/Logo.png') }}" alt="Logo" />
+        </div>
+        <nav>
+            <ul id="nav-list">
+                {% if session.get('username') %}
+                    <li><a href="#">Bienvenido, {{ session['username'] }}</a></li>
+                    <li><a href="{{ url_for('logout') }}">Cerrar Sesión</a></li>
+                {% else %}
+                    <li><a href="#" id="loginLink">Iniciar Sesión</a></li>
+                {% endif %}
+                <li><a href="#">Contáctanos</a></li>
+            </ul>
+            <div class="menu-toggle" onclick="toggleMenu()">☰</div>
+        </nav>
+    </header>
+
+    <div class="container">
+        <div class="side-bar"></div>
+        <main class="main">
+            <section class="hero">
+                <h1>Productos al alcance de un clic</h1>
+                <p>Descripción de sitio</p>
+                <button class="shop-button">Comprar</button>
+            </section>
+
+            {% if session.get('username') %}
+            <button id="showFormBtn" class="shop-button">Agregar Producto</button>
+
+            <form id="productForm" action="{{ url_for('add_product') }}" method="POST" enctype="multipart/form-data" style="display: none;">
+                <input type="text" name="name" placeholder="Nombre del producto" required />
+                <input type="text" name="category" placeholder="Categoría" required />
+                <input type="text" name="features" placeholder="Características" required />
+                <input type="number" name="price" placeholder="Precio" required />
+                <input type="file" name="image" accept="image/*" required />
+                <button type="submit" class="shop-button">Guardar Producto</button>
+            </form>
+            {% endif %}
+
+            <section class="products" id="productsContainer">
+                {% for product in productos %}
+                <div class="product-card">
+                    <div class="image" style="background-image: url('{{ url_for('static', filename='uploads/' ~ product['image_filename']) }}');"></div>
+                    <div class="details">
+                        <div class="title">{{ product['name'] }}</div>
+                        <div class="subtitle">Categoría: {{ product['category'] }} | {{ product['features'] }} | ${{ product['price'] }}</div>
+                    </div>
+                </div>
+                {% endfor %}
+            </section>
+        </main>
+    </div>
+
+    <div id="loginModal" class="modal" style="display:none;">
+        <div class="modal-content">
+            <span class="close-button" onclick="closeLoginModal()">&times;</span>
+            <h2>Iniciar Sesión</h2>
+            <form id="loginForm">
+                <input type="text" id="username" placeholder="Usuario" required />
+                <input type="password" id="password" placeholder="Contraseña" required />
+                <button type="submit" class="shop-button">Ingresar</button>
+            </form>
+        </div>
+    </div>
+
+<script src="{{ url_for('static', filename='js/script.js') }}"></script>
+</body>
+</html>
+
+<!--<input type="url" id="productImage" placeholder="URL de imagen"/>-->
+<!-- Productos de ejemplo 
+<div class="product-card">
+    <div class="image" style="background-image: url('https://via.placeholder.com/80')"></div>
+    <div class="details">
+        <div class="title">Producto A</div>
+        <div class="subtitle">Descripción breve</div>
+    </div>
+    <button class="delete-btn" onclick="deleteProduct(this)">🗑 Eliminar</button>
+</div>
+1-->
