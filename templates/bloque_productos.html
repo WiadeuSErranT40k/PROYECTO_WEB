@@ -1,0 +1,69 @@
+{% set current_category = namespace(name=None) %}
+{% set categorias_con_productos = [] %}
+
+<!-- Primero, recolectar todas las categorías que tienen productos -->
+{% for product in productos %}
+    {% if product.category_name not in categorias_con_productos %}
+        {% set _ = categorias_con_productos.append(product.category_name) %}
+    {% endif %}
+{% endfor %}
+
+<!-- Mostrar productos organizados por categoría -->
+{% for product in productos %}
+    {% if current_category.name != product.category_name %}
+        {% if current_category.name is not none %}
+            </div> <!-- Cerrar sección anterior -->
+        {% endif %}
+        {% set current_category.name = product.category_name %}
+        <div class="category-section">
+            <h2 class="category-title" style="color: {{ product.category_color }}; margin: 2rem 0 1rem 0; padding: 0.5rem 1rem; background: rgba(0,0,0,0.05); border-radius: 5px; display: flex; align-items: center; gap: 0.5rem;">
+                <span style="font-size: 1.5em;">{{ product.category_icon }}</span>
+                {{ product.category_name }}
+            </h2>
+            <div class="products">
+    {% endif %}
+    <div class="product-card" data-product-id="{{ product['id'] }}">
+        <div class="image" style="background-image: url('{{ url_for('static', filename='uploads/' ~ product['image_filename']) }}');"></div>
+        <div class="details">
+            <div class="title">{{ product['name'] }}</div>
+            <div class="subtitle">{{ product['features'] }}</div>
+            <div class="price">${{ product['price'] }}</div>
+            <div class="quantity">Stock: {{ product['quantity'] }} unidades</div>
+            {% if product['brand'] %}
+                <div class="brand">Marca: {{ product['brand'] }}</div>
+            {% endif %}
+            {% if product['sku'] %}
+                <div class="sku">SKU: {{ product['sku'] }}</div>
+            {% endif %}
+            {% if product['created_by_username'] %}
+                <div class="creator">Creado por: {{ product['created_by_username'] }}</div>
+            {% endif %}
+            <div class="rating-section">
+                <div class="stars">
+                    {% for i in range(1, 6) %}
+                        <i class="fas fa-star star-rating" data-rating="{{ i }}" data-product-id="{{ product['id'] }}"></i>
+                    {% endfor %}
+                </div>
+                <div class="rating-info">
+                    <span class="rating-value">{{ product['rating']|default(0, true) }}</span>
+                    <span class="rating-count">({{ product['rating_count']|default(0, true) }} evaluaciones)</span>
+                </div>
+            </div>
+        </div>
+        <button class="buy-btn" onclick="showPurchaseModal({{ product['id'] }}, '{{ product['name'] }}', {{ product['price'] }}, {{ product['quantity'] }})">Comprar</button>
+        {% if session.get('username') %}
+            {% set can_edit = session.get('username') == product['created_by_username'] or session.get('username') == 'admin' %}
+            {% if can_edit %}
+                <div class="admin-buttons">
+                    <button class="edit-btn" onclick="editProduct({{ product['id'] }})">✏️ Editar</button>
+                    <button class="delete-btn" onclick="deleteProduct({{ product['id'] }})">🗑 Eliminar</button>
+                </div>
+            {% endif %}
+        {% endif %}
+    </div>
+{% endfor %}
+{% if productos %}
+    </div> <!-- Cerrar última sección -->
+{% else %}
+    <div style="padding:2rem; text-align:center; color:#888; font-size:1.2em;">No se encontraron productos para tu búsqueda.</div>
+{% endif %} 

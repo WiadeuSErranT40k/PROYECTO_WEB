@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Gestión de Usuarios</title>
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body style="background: #f5f5f5;">
+    <div style="max-width: 700px; margin: 2rem auto; background: #fff; border-radius: 10px; box-shadow: 0 2px 12px rgba(0,0,0,0.07); padding: 2rem;">
+        <h2 style="color: #123d2f; text-align: center; margin-bottom: 2rem;">Gestión de Usuarios</h2>
+        {% if msg %}
+            <div style="background:#e3f2fd; color:#1976d2; padding:0.7em 1em; border-radius:6px; margin-bottom:1.5em; text-align:center;">{{ msg }}</div>
+        {% endif %}
+        <form method="post" style="margin-bottom:2em; display:flex; gap:1em; align-items:center; justify-content:center; flex-wrap:wrap;">
+            <input type="text" name="new_username" placeholder="Nuevo usuario" required style="padding:0.5em; border-radius:5px; border:1px solid #ccc;">
+            <input type="text" name="new_password" placeholder="Contraseña" required style="padding:0.5em; border-radius:5px; border:1px solid #ccc;">
+            <button type="submit" name="add_user" style="background:#1976d2; color:#fff; border:none; border-radius:5px; padding:0.5em 1.2em; font-weight:bold; cursor:pointer;">Agregar</button>
+        </form>
+        <table style="width:100%; border-collapse: collapse;">
+            <thead>
+                <tr style="background: #123d2f; color: #fff;">
+                    <th style="padding: 0.7em; border-radius: 8px 0 0 8px;">ID</th>
+                    <th style="padding: 0.7em;">Usuario</th>
+                    <th style="padding: 0.7em;">Contraseña</th>
+                    <th style="padding: 0.7em; border-radius: 0 8px 8px 0;">Acción</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user in usuarios %}
+                <tr style="border-bottom: 1px solid #eee;">
+                    <td style="padding: 0.7em; text-align:center;">{{ user['id'] }}</td>
+                    <td style="padding: 0.7em;">{{ user['username'] }}</td>
+                    <td style="padding: 0.7em; font-family:monospace;">{{ user['password'] }}</td>
+                    <td style="padding: 0.7em; text-align:center;">
+                        {% if user['username'] != 'admin' %}
+                        <form method="post" style="display:inline;">
+                            <input type="hidden" name="delete_user_id" value="{{ user['id'] }}">
+                            <button type="submit" name="delete_user" style="background:#d32f2f; color:#fff; border:none; border-radius:5px; padding:0.4em 1em; font-weight:bold; cursor:pointer;">Eliminar</button>
+                        </form>
+                        {% else %}
+                        <span style="color:#888;">-</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="4" style="text-align:center; color:#888; padding:2em;">No hay usuarios registrados.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <div style="text-align:center; margin-top:2rem;">
+            <a href="/" style="color:#1976d2; text-decoration:underline;">Volver al inicio</a>
+        </div>
+    </div>
+</body>
+</html> 

@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>Antonito Avances</title>
     <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 <body>
 
@@ -12,15 +13,26 @@
         <div class="logo">
             <img src="{{ url_for('static', filename='images/Logo.png') }}" alt="Logo" />
         </div>
+        <form id="searchForm" class="search-bar" autocomplete="off">
+            <input type="text" id="searchInput" name="q" placeholder="Buscar productos, precio, características..." />
+            <button type="submit"><i class="fas fa-search"></i></button>
+        </form>
         <nav>
             <ul id="nav-list">
                 {% if session.get('username') %}
                     <li><a href="#">Bienvenido, {{ session['username'] }}</a></li>
+                    <li><a href="#" id="transactionsLink">Mis Compras</a></li>
                     <li><a href="{{ url_for('logout') }}">Cerrar Sesión</a></li>
+                    {% if session.get('username') == 'admin' %}
+                        <li><a href="{{ url_for('visitas') }}">Ver Visitas</a></li>
+                        <li><a href="{{ url_for('busquedas') }}">Búsquedas</a></li>
+                        <li><a href="{{ url_for('usuarios') }}">Usuarios</a></li>
+                    {% endif %}
                 {% else %}
                     <li><a href="#" id="loginLink">Iniciar Sesión</a></li>
+                    <li><a href="#" id="registerLink">Registrarse</a></li>
                 {% endif %}
-                <li><a href="#">Contáctanos</a></li>
+                <li><a href="#" id="contactLink">Contáctanos</a></li>
             </ul>
             <div class="menu-toggle" onclick="toggleMenu()">☰</div>
         </nav>
@@ -32,60 +44,339 @@
             <section class="hero">
                 <h1>Productos al alcance de un clic</h1>
                 <p>Descripción de sitio</p>
-                <button class="shop-button">Comprar</button>
             </section>
 
             {% if session.get('username') %}
             <button id="showFormBtn" class="shop-button">Agregar Producto</button>
 
-            <form id="productForm" action="{{ url_for('add_product') }}" method="POST" enctype="multipart/form-data" style="display: none;">
+            <form id="addProductForm" enctype="multipart/form-data" style="display: none; background: #f5f5f5; padding: 2rem; border-radius: 10px; margin: 2rem 0;">
+                <h3>Agregar Nuevo Producto</h3>
                 <input type="text" name="name" placeholder="Nombre del producto" required />
-                <input type="text" name="category" placeholder="Categoría" required />
+                
+                <select name="category_id" id="categorySelect" required>
+                    <option value="">Seleccionar categoría</option>
+                    {% for categoria in categorias %}
+                        <option value="{{ categoria.id }}">{{ categoria.icon }} {{ categoria.name }}</option>
+                    {% endfor %}
+                    <option value="new">➕ Crear nueva categoría</option>
+                </select>
+                
+                <!-- Campos para nueva categoría (ocultos por defecto) -->
+                <div id="newCategoryFields" style="display: none; background: #f0f0f0; padding: 1rem; border-radius: 5px; margin: 1rem 0;">
+                    <h4>Nueva Categoría</h4>
+                    <input type="text" name="new_category_name" placeholder="Nombre de la categoría" />
+                    <input type="text" name="new_category_description" placeholder="Descripción de la categoría" />
+                    <input type="color" name="new_category_color" value="#123d2f" style="width: 100px;" />
+                    <input type="text" name="new_category_icon" placeholder="Icono (emoji)" value="📦" />
+                </div>
+                
                 <input type="text" name="features" placeholder="Características" required />
-                <input type="number" name="price" placeholder="Precio" required />
+                <input type="number" name="price" placeholder="Precio" step="0.01" required />
+                <input type="number" name="quantity" placeholder="Cantidad disponible" min="1" value="1" required />
                 <input type="file" name="image" accept="image/*" required />
+                
+                <!-- Botón para opciones avanzadas -->
+                <button type="button" id="advancedOptionsBtn" class="shop-button" style="background-color: #666; margin-top: 1rem;">
+                    ⚙️ Opciones Avanzadas
+                </button>
+                
+                <!-- Campos avanzados (ocultos por defecto) -->
+                <div id="advancedFields" style="display: none; background: #f9f9f9; padding: 1rem; border-radius: 5px; margin: 1rem 0;">
+                    <h4>Información Avanzada</h4>
+                    <input type="text" name="sku" placeholder="SKU (opcional - se genera automáticamente si se deja vacío)" />
+                    <input type="text" name="brand" placeholder="Marca" />
+                    <input type="number" name="weight" placeholder="Peso (kg)" step="0.01" />
+                    <input type="text" name="dimensions" placeholder="Dimensiones (ej: 10x5x2 cm)" />
+                    <input type="number" name="warranty_months" placeholder="Garantía (meses)" value="12" min="0" />
+                    
+                    <div style="margin: 1rem 0;">
+                        <label style="display: block; margin-bottom: 0.5rem;">
+                            <input type="checkbox" name="is_featured" /> Producto destacado
+                        </label>
+                        <label style="display: block;">
+                            <input type="checkbox" name="is_active" checked /> Producto activo
+                        </label>
+                    </div>
+                </div>
+                
                 <button type="submit" class="shop-button">Guardar Producto</button>
+                <button type="button" id="cancelFormBtn" class="shop-button" style="background-color: #666; margin-left: 1rem;">Cancelar</button>
             </form>
             {% endif %}
 
-            <section class="products" id="productsContainer">
-                {% for product in productos %}
-                <div class="product-card">
+            <!-- Productos organizados por categoría -->
+            {% set current_category = namespace(name=None) %}
+            {% set categorias_con_productos = [] %}
+            
+            <!-- Primero, recolectar todas las categorías que tienen productos -->
+            {% for product in productos %}
+                {% if product.category_name not in categorias_con_productos %}
+                    {% set _ = categorias_con_productos.append(product.category_name) %}
+                {% endif %}
+            {% endfor %}
+            
+            <!-- Mostrar productos organizados por categoría -->
+            {% for product in productos %}
+                {% if current_category.name != product.category_name %}
+                    {% if current_category.name is not none %}
+                        </div> <!-- Cerrar sección anterior -->
+                    {% endif %}
+                    
+                    {% set current_category.name = product.category_name %}
+                    <div class="category-section">
+                        <h2 class="category-title" style="color: {{ product.category_color }}; margin: 2rem 0 1rem 0; padding: 0.5rem 1rem; background: rgba(0,0,0,0.05); border-radius: 5px; display: flex; align-items: center; gap: 0.5rem;">
+                            <span style="font-size: 1.5em;">{{ product.category_icon }}</span>
+                            {{ product.category_name }}
+                        </h2>
+                        <div class="products">
+                {% endif %}
+                
+                <div class="product-card" data-product-id="{{ product['id'] }}">
                     <div class="image" style="background-image: url('{{ url_for('static', filename='uploads/' ~ product['image_filename']) }}');"></div>
                     <div class="details">
                         <div class="title">{{ product['name'] }}</div>
-                        <div class="subtitle">Categoría: {{ product['category'] }} | {{ product['features'] }} | ${{ product['price'] }}</div>
+                        <div class="subtitle">{{ product['features'] }}</div>
+                        <div class="price">${{ product['price'] }}</div>
+                        <div class="quantity">Stock: {{ product['quantity'] }} unidades</div>
+                        
+                        <!-- Información adicional si está disponible -->
+                        {% if product['brand'] %}
+                            <div class="brand">Marca: {{ product['brand'] }}</div>
+                        {% endif %}
+                        {% if product['sku'] %}
+                            <div class="sku">SKU: {{ product['sku'] }}</div>
+                        {% endif %}
+                        
+                        <!-- Información del creador -->
+                        {% if product['created_by_username'] %}
+                            <div class="creator">Creado por: {{ product['created_by_username'] }}</div>
+                        {% endif %}
+                        
+                        <!-- Sistema de calificaciones -->
+                        <div class="rating-section">
+                            <div class="stars">
+                                {% for i in range(1, 6) %}
+                                    <i class="fas fa-star star-rating" data-rating="{{ i }}" data-product-id="{{ product['id'] }}"></i>
+                                {% endfor %}
+                            </div>
+                            <div class="rating-info">
+                                <span class="rating-value">{{ product['rating']|default(0, true) }}</span>
+                                <span class="rating-count">({{ product['rating_count']|default(0, true) }} evaluaciones)</span>
+                            </div>
+                        </div>
                     </div>
+                    
+                    <!-- Botón de comprar (aparece en hover) -->
+                    <button class="buy-btn" onclick="showPurchaseModal({{ product['id'] }}, '{{ product['name'] }}', {{ product['price'] }}, {{ product['quantity'] }})">Comprar</button>
+                    
+                    <!-- Botones de administración (solo para creador o admin) -->
+                    {% if session.get('username') %}
+                        {% set can_edit = session.get('username') == product['created_by_username'] or session.get('username') == 'admin' %}
+                        {% if can_edit %}
+                            <div class="admin-buttons">
+                                <button class="edit-btn" onclick="editProduct({{ product['id'] }})">✏️ Editar</button>
+                                <button class="delete-btn" onclick="deleteProduct({{ product['id'] }})">🗑 Eliminar</button>
+                            </div>
+                        {% endif %}
+                    {% endif %}
                 </div>
-                {% endfor %}
-            </section>
+            {% endfor %}
+            
+            {% if productos %}
+                </div> <!-- Cerrar última sección -->
+            {% endif %}
+            
+            <!-- Mostrar categorías vacías -->
+            {% set categorias_vacias = [] %}
+            {% for categoria in categorias %}
+                {% if categoria.name not in categorias_con_productos %}
+                    {% set _ = categorias_vacias.append(categoria) %}
+                {% endif %}
+            {% endfor %}
+            
+            {# Se eliminó la sección de categorías vacías #}
         </main>
     </div>
 
+    <!-- Footer con contacto y normas -->
+    <footer id="contacto" style="background: #123d2f; color: #fff; padding: 2rem 1rem; text-align: center; margin-top: 2rem;">
+        <h3>Contacto</h3>
+        <p>¿Tienes dudas, sugerencias o necesitas ayuda? Escríbenos a <a href="mailto:soporte@antonito.com" style="color: #ffd700; text-decoration: underline;">soporte@antonito.com</a> o llámanos al <b>+52 123 456 7890</b>.</p>
+        <h4>Normas de la plataforma</h4>
+        <ul style="list-style: none; padding: 0; margin: 1rem 0;">
+            <li>• Respeta a los demás usuarios y evita lenguaje ofensivo.</li>
+            <li>• Publica productos reales y con información verídica.</li>
+            <li>• No compartas datos personales sensibles en público.</li>
+            <li>• Las compras y ventas están sujetas a revisión para tu seguridad.</li>
+        </ul>
+        <div style="margin-top: 1rem; font-size: 0.9em; color: #ccc;">
+            © 2024 Antonito Avances. Todos los derechos reservados.<br>
+            Desarrollado por el equipo de Antonito.
+        </div>
+    </footer>
+
+    <!-- Modal de Login -->
     <div id="loginModal" class="modal" style="display:none;">
         <div class="modal-content">
             <span class="close-button" onclick="closeLoginModal()">&times;</span>
             <h2>Iniciar Sesión</h2>
             <form id="loginForm">
-                <input type="text" id="username" placeholder="Usuario" required />
-                <input type="password" id="password" placeholder="Contraseña" required />
+                <input type="text" id="username" name="username" placeholder="Usuario" required />
+                <input type="password" id="password" name="password" placeholder="Contraseña" required />
                 <button type="submit" class="shop-button">Ingresar</button>
             </form>
+        </div>
+    </div>
+
+    <!-- Modal de Registro -->
+    <div id="registerModal" class="modal" style="display:none;">
+        <div class="modal-content">
+            <span class="close-button" onclick="closeRegisterModal()">&times;</span>
+            <h2>Registrarse</h2>
+            <form id="registerForm">
+                <input type="text" id="regUsername" name="username" placeholder="Usuario" required />
+                <input type="password" id="regPassword" name="password" placeholder="Contraseña" required />
+                <input type="password" id="regConfirmPassword" name="confirmPassword" placeholder="Confirmar Contraseña" required />
+                <button type="submit" class="shop-button">Registrarse</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal de Calificación -->
+    <div id="ratingModal" class="modal" style="display:none;">
+        <div class="modal-content">
+            <span class="close-button" onclick="closeRatingModal()">&times;</span>
+            <h2>Calificar Producto</h2>
+            <form id="ratingForm">
+                <div class="rating-stars">
+                    <i class="fas fa-star" data-rating="1"></i>
+                    <i class="fas fa-star" data-rating="2"></i>
+                    <i class="fas fa-star" data-rating="3"></i>
+                    <i class="fas fa-star" data-rating="4"></i>
+                    <i class="fas fa-star" data-rating="5"></i>
+                </div>
+                <textarea id="ratingComment" placeholder="Comentario (opcional)" rows="3"></textarea>
+                <button type="submit" class="shop-button">Enviar Calificación</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal de Compra -->
+    <div id="purchaseModal" class="modal" style="display:none;">
+        <div class="modal-content purchase-modal">
+            <span class="close-button" onclick="closePurchaseModal()">&times;</span>
+            <h2>Finalizar Compra</h2>
+            <div class="purchase-summary">
+                <h3 id="purchaseProductName"></h3>
+                <p>Precio unitario: $<span id="purchasePrice"></span></p>
+                <div class="quantity-selector">
+                    <label for="purchaseQuantity">Cantidad:</label>
+                    <input type="number" id="purchaseQuantity" min="1" value="1" max="99">
+                </div>
+                <p class="total">Total: $<span id="purchaseTotal"></span></p>
+            </div>
+            <form id="purchaseForm">
+                <input type="hidden" id="purchaseProductId">
+                <div class="card-info">
+                    <h3>Información de Pago</h3>
+                    <input type="text" id="cardNumber" name="card_number" placeholder="Número de tarjeta" maxlength="19" required />
+                    <input type="text" id="cardHolder" name="card_holder" placeholder="Titular de la tarjeta" required />
+                    <div class="card-details">
+                        <input type="number" id="expiryMonth" name="expiry_month" placeholder="MM" min="1" max="12" required />
+                        <input type="number" id="expiryYear" name="expiry_year" placeholder="YYYY" min="2024" max="2030" required />
+                        <input type="text" id="cvv" name="cvv" placeholder="CVV" maxlength="4" required />
+                    </div>
+                </div>
+                <button type="submit" class="shop-button">Confirmar Compra</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal de Historial de Compras -->
+    <div id="transactionsModal" class="modal" style="display:none;">
+        <div class="modal-content transactions-modal">
+            <span class="close-button" onclick="closeTransactionsModal()">&times;</span>
+            <h2>Mi Historial de Compras</h2>
+            <div id="transactionsList">
+                <!-- Las transacciones se cargarán dinámicamente -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Edición de Producto -->
+    <div id="editProductModal" class="modal" style="display:none;">
+        <div class="modal-content edit-modal">
+            <span class="close-button" onclick="closeEditProductModal()">&times;</span>
+            <h2>Editar Producto</h2>
+            <form id="editProductForm" enctype="multipart/form-data">
+                <input type="hidden" id="editProductId" name="product_id">
+                <input type="text" id="editProductName" name="name" placeholder="Nombre del producto" required />
+                
+                <select name="category_id" id="editCategorySelect" required>
+                    <option value="">Seleccionar categoría</option>
+                    {% for categoria in categorias %}
+                        <option value="{{ categoria.id }}">{{ categoria.icon }} {{ categoria.name }}</option>
+                    {% endfor %}
+                    <option value="new">➕ Crear nueva categoría</option>
+                </select>
+                
+                <!-- Campos para nueva categoría (ocultos por defecto) -->
+                <div id="editNewCategoryFields" style="display: none; background: #f0f0f0; padding: 1rem; border-radius: 5px; margin: 1rem 0;">
+                    <h4>Nueva Categoría</h4>
+                    <input type="text" name="new_category_name" placeholder="Nombre de la categoría" />
+                    <input type="text" name="new_category_description" placeholder="Descripción de la categoría" />
+                    <input type="color" name="new_category_color" value="#123d2f" style="width: 100px;" />
+                    <input type="text" name="new_category_icon" placeholder="Icono (emoji)" value="📦" />
+                </div>
+                
+                <input type="text" id="editProductFeatures" name="features" placeholder="Características" required />
+                <input type="number" id="editProductPrice" name="price" placeholder="Precio" step="0.01" required />
+                <input type="number" id="editProductQuantity" name="quantity" placeholder="Cantidad disponible" min="1" value="1" required />
+                <input type="file" name="image" accept="image/*" />
+                <small style="color: #666;">Deja vacío para mantener la imagen actual</small>
+                
+                <!-- Botón para opciones avanzadas -->
+                <button type="button" id="editAdvancedOptionsBtn" class="shop-button" style="background-color: #666; margin-top: 1rem;">
+                    ⚙️ Opciones Avanzadas
+                </button>
+                
+                <!-- Campos avanzados (ocultos por defecto) -->
+                <div id="editAdvancedFields" style="display: none; background: #f9f9f9; padding: 1rem; border-radius: 5px; margin: 1rem 0;">
+                    <h4>Información Avanzada</h4>
+                    <input type="text" id="editProductSku" name="sku" placeholder="SKU" />
+                    <input type="text" id="editProductBrand" name="brand" placeholder="Marca" />
+                    <input type="number" id="editProductWeight" name="weight" placeholder="Peso (kg)" step="0.01" />
+                    <input type="text" id="editProductDimensions" name="dimensions" placeholder="Dimensiones (ej: 10x5x2 cm)" />
+                    <input type="number" id="editProductWarranty" name="warranty_months" placeholder="Garantía (meses)" value="12" min="0" />
+                    
+                    <div style="margin: 1rem 0;">
+                        <label style="display: block; margin-bottom: 0.5rem;">
+                            <input type="checkbox" id="editProductFeatured" name="is_featured" /> Producto destacado
+                        </label>
+                        <label style="display: block;">
+                            <input type="checkbox" id="editProductActive" name="is_active" checked /> Producto activo
+                        </label>
+                    </div>
+                </div>
+                
+                <button type="submit" class="shop-button">Actualizar Producto</button>
+                <button type="button" onclick="closeEditProductModal()" class="shop-button" style="background-color: #666; margin-left: 1rem;">Cancelar</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal de Error -->
+    <div id="errorModal" class="modal" style="display:none;">
+        <div class="modal-content error-modal">
+            <span class="close-button" onclick="closeErrorModal()">&times;</span>
+            <h2>❌ Error</h2>
+            <div id="errorMessage" style="color: #d32f2f; margin: 1rem 0; padding: 1rem; background: #ffebee; border-radius: 5px;">
+                <!-- El mensaje de error se mostrará aquí -->
+            </div>
+            <button onclick="closeErrorModal()" class="shop-button">Cerrar</button>
         </div>
     </div>
 
 <script src="{{ url_for('static', filename='js/script.js') }}"></script>
 </body>
 </html>
-
-<!--<input type="url" id="productImage" placeholder="URL de imagen"/>-->
-<!-- Productos de ejemplo 
-<div class="product-card">
-    <div class="image" style="background-image: url('https://via.placeholder.com/80')"></div>
-    <div class="details">
-        <div class="title">Producto A</div>
-        <div class="subtitle">Descripción breve</div>
-    </div>
-    <button class="delete-btn" onclick="deleteProduct(this)">🗑 Eliminar</button>
-</div>
-1-->
